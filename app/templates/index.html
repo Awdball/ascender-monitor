@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ascender Grade Monitor</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding-bottom: 60px;
+        }
+        .navbar-brand {
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border-radius: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .card-header {
+            background-color: #ffffff;
+            border-bottom: 1px solid #edf2f7;
+            border-top-left-radius: 0.75rem !important;
+            border-top-right-radius: 0.75rem !important;
+            font-weight: 600;
+        }
+        .badge-missing {
+            background-color: #dc3545;
+            color: #ffffff;
+            font-size: 0.85rem;
+            padding: 0.35em 0.65em;
+        }
+        .badge-low {
+            background-color: #fd7e14;
+            color: #ffffff;
+            font-size: 0.85rem;
+            padding: 0.35em 0.65em;
+        }
+        .badge-good {
+            background-color: #198754;
+            color: #ffffff;
+            font-size: 0.85rem;
+            padding: 0.35em 0.65em;
+        }
+        .badge-exempt {
+            background-color: #6c757d;
+            color: #ffffff;
+            font-size: 0.85rem;
+            padding: 0.35em 0.65em;
+        }
+        .nav-pills .nav-link {
+            border-radius: 0.5rem;
+            font-weight: 600;
+            color: #495057;
+            padding: 0.5rem 1rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+        }
+        .table-assignment th {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6c757d;
+        }
+        .flagged-item {
+            border-left: 4px solid #dc3545;
+            transition: transform 0.1s ease;
+        }
+        .flagged-item.low-grade {
+            border-left: 4px solid #fd7e14;
+        }
+        .flagged-item:hover {
+            transform: translateX(2px);
+        }
+        .toast-container {
+            z-index: 1090;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm py-2">
+        <div class="container-fluid px-3 px-lg-4">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="bi bi-mortarboard-fill text-warning me-2 fs-4"></i>
+                <span>Ascender Monitor</span>
+            </a>
+
+            <div class="d-flex align-items-center ms-auto">
+                <button id="btnCheckNow" class="btn btn-primary btn-sm d-flex align-items-center me-2" onclick="triggerCheck()">
+                    <i class="bi bi-arrow-repeat me-1" id="iconCheckNow"></i>
+                    <span id="textCheckNow">Check Now</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Status Sub-header -->
+    <div class="bg-white border-bottom py-2 mb-3">
+        <div class="container-fluid px-3 px-lg-4 d-flex flex-wrap align-items-center justify-content-between text-muted small">
+            <div class="d-flex align-items-center gap-3">
+                <span id="statusIndicator" class="d-flex align-items-center text-success fw-bold">
+                    <i class="bi bi-circle-fill fs-6 me-1 text-success" id="statusDot"></i>
+                    <span id="statusText">Active</span>
+                </span>
+                <span><strong>Last Check:</strong> <span id="lastCheckTime">Loading...</span></span>
+                <span class="d-none d-md-inline"><strong>Next Check:</strong> <span id="nextCheckTime">Calculating...</span></span>
+            </div>
+            <div id="checkSummary" class="text-truncate mt-1 mt-md-0 fw-semibold text-primary"></div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container-fluid px-3 px-lg-4">
+
+        <!-- Main Navigation Tabs -->
+        <ul class="nav nav-pills mb-3" id="mainTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active d-flex align-items-center" id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard-tab-pane" type="button" role="tab">
+                    <i class="bi bi-grid-fill me-1"></i> Dashboard
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link d-flex align-items-center" id="settings-tab" data-bs-toggle="pill" data-bs-target="#settings-tab-pane" type="button" role="tab">
+                    <i class="bi bi-gear-fill me-1"></i> Settings
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link d-flex align-items-center" id="history-tab" data-bs-toggle="pill" data-bs-target="#history-tab-pane" type="button" role="tab">
+                    <i class="bi bi-clock-history me-1"></i> Alert History
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabContent">
+
+            <!-- TAB 1: DASHBOARD -->
+            <div class="tab-pane fade show active" id="dashboard-tab-pane" role="tabpanel">
+                <div id="dashboardLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-2 text-muted">Retrieving grades and assignments...</div>
+                </div>
+
+                <!-- Students Navigation & Content -->
+                <div id="dashboardContent" style="display: none;">
+                    <!-- Student Selector Tabs -->
+                    <ul class="nav nav-tabs mb-3" id="studentTabs" role="tablist"></ul>
+                    <div class="tab-content" id="studentTabPanes"></div>
+                </div>
+            </div>
+
+            <!-- TAB 2: SETTINGS -->
+            <div class="tab-pane fade" id="settings-tab-pane" role="tabpanel">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-xl-10">
+                        <form id="settingsForm" onsubmit="saveSettings(event)">
+
+                            <!-- Section 1: Alert Rules -->
+                            <div class="card mb-3">
+                                <div class="card-header d-flex align-items-center text-primary">
+                                    <i class="bi bi-sliders me-2 fs-5"></i> Alert Rules & Criteria
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Minimum Grade Alert Threshold (%)</label>
+                                            <div class="input-group">
+                                                <input type="number" step="1" min="0" max="100" class="form-control" id="min_grade" name="min_grade" required>
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                            <div class="form-text">Sends an alert whenever an assignment grade is lower than this score (e.g. 90).</div>
+                                        </div>
+
+                                        <div class="col-12 col-md-6 d-flex flex-column justify-content-center">
+                                            <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" id="alert_on_missing" name="alert_on_missing">
+                                                <label class="form-check-label fw-semibold" for="alert_on_missing">Alert on Missing Assignments ('M')</label>
+                                            </div>
+                                            <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" id="alert_on_grade_drop" name="alert_on_grade_drop">
+                                                <label class="form-check-label fw-semibold" for="alert_on_grade_drop">Alert if an existing grade drops lower</label>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="alert_on_new_only" name="alert_on_new_only">
+                                                <label class="form-check-label" for="alert_on_new_only">Only alert on new / updated assignments (prevents repeat spam)</label>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 pt-2 border-top">
+                                            <label class="form-label fw-semibold">Dashboard Base URL (Optional)</label>
+                                            <input type="url" class="form-control" id="dashboard_url" name="dashboard_url" placeholder="https://grades.example.com">
+                                            <div class="form-text">If provided, Pushover notifications and email alerts will include a direct link back to this web interface.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 2: Pushover Settings (Multi-Account) -->
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center text-info">
+                                        <i class="bi bi-bell-fill me-2 fs-5"></i> Pushover Notifications (2 Accounts)
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" id="pushover_enabled" name="pushover_enabled" onchange="togglePushoverFields()">
+                                        <label class="form-check-label fw-semibold" for="pushover_enabled">Enabled</label>
+                                    </div>
+                                </div>
+                                <div class="card-body" id="pushoverFields">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <label class="form-label fw-semibold">Pushover Application API Token</label>
+                                            <input type="text" class="form-control" id="pushover_app_token" name="pushover_app_token" placeholder="Your Pushover Application Token (e.g. azGDORePk...)">
+                                            <div class="form-text">Created under "Your Applications" on pushover.net.</div>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Recipient 1 User Key</label>
+                                            <input type="text" class="form-control" id="pushover_user_1" name="pushover_user_1" placeholder="User key for Phone 1">
+                                            <div class="form-text">User key found on the Pushover dashboard for User 1.</div>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Recipient 2 User Key</label>
+                                            <input type="text" class="form-control" id="pushover_user_2" name="pushover_user_2" placeholder="User key for Phone 2">
+                                            <div class="form-text">User key found on the Pushover dashboard for User 2.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 3: Email Settings (Multi-Recipient) -->
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center text-primary">
+                                        <i class="bi bi-envelope-fill me-2 fs-5"></i> Email Notifications (2 Accounts)
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" id="email_enabled" name="email_enabled" onchange="toggleEmailFields()">
+                                        <label class="form-check-label fw-semibold" for="email_enabled">Enabled</label>
+                                    </div>
+                                </div>
+                                <div class="card-body" id="emailFields">
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-8">
+                                            <label class="form-label fw-semibold">SMTP Host</label>
+                                            <input type="text" class="form-control" id="smtp_host" name="smtp_host" placeholder="smtp.gmail.com">
+                                        </div>
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">SMTP Port</label>
+                                            <input type="number" class="form-control" id="smtp_port" name="smtp_port" placeholder="587">
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">SMTP Username</label>
+                                            <input type="text" class="form-control" id="smtp_user" name="smtp_user" placeholder="user@example.com">
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">SMTP App Password</label>
+                                            <input type="password" class="form-control" id="smtp_password" name="smtp_password" placeholder="••••••••">
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="use_tls" name="use_tls" checked>
+                                                <label class="form-check-label" for="use_tls">Enable TLS Encryption (recommended for port 587)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Recipient 1 Email</label>
+                                            <input type="email" class="form-control" id="email_recipient_1" name="email_recipient_1" placeholder="parent1@example.com">
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Recipient 2 Email</label>
+                                            <input type="email" class="form-control" id="email_recipient_2" name="email_recipient_2" placeholder="parent2@example.com">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 4: Schedule -->
+                            <div class="card mb-3">
+                                <div class="card-header d-flex align-items-center text-secondary">
+                                    <i class="bi bi-clock me-2 fs-5"></i> Check Frequency & Schedule
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Check Interval (Minutes)</label>
+                                            <select class="form-select" id="interval_minutes" name="interval_minutes">
+                                                <option value="15">Every 15 minutes</option>
+                                                <option value="30">Every 30 minutes</option>
+                                                <option value="60">Every 1 hour</option>
+                                                <option value="120">Every 2 hours</option>
+                                                <option value="240">Every 4 hours</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-12 col-md-6 d-flex flex-column justify-content-center">
+                                            <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" id="school_hours_only" name="school_hours_only">
+                                                <label class="form-check-label fw-semibold" for="school_hours_only">Only check during school hours (7:00 AM – 6:00 PM)</label>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="weekdays_only" name="weekdays_only" checked>
+                                                <label class="form-check-label" for="weekdays_only">Weekdays only (Monday – Friday)</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 5: Portal Credentials -->
+                            <div class="card mb-4">
+                                <div class="card-header d-flex align-items-center text-dark">
+                                    <i class="bi bi-key-fill me-2 fs-5"></i> Ascender Portal Credentials
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">District ID</label>
+                                            <input type="text" class="form-control" id="district_id" name="district_id" placeholder="e.g. 123456" required>
+                                        </div>
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">Username</label>
+                                            <input type="text" class="form-control" id="username" name="username" required>
+                                        </div>
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">Password</label>
+                                            <input type="password" class="form-control" id="password" name="password" placeholder="••••••••">
+                                            <div class="form-text">Leave as dots to keep existing saved password.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="d-flex flex-wrap gap-2 justify-content-end mb-4">
+                                <button type="button" class="btn btn-outline-info" onclick="sendTestNotification()">
+                                    <i class="bi bi-send-fill me-1"></i> Send Test Notification
+                                </button>
+                                <button type="submit" class="btn btn-success px-4" id="btnSaveSettings">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Save Settings
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: ALERT HISTORY -->
+            <div class="tab-pane fade" id="history-tab-pane" role="tabpanel">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="fw-bold"><i class="bi bi-clock-history me-1"></i> Recent Dispatched Alerts</span>
+                        <button class="btn btn-outline-danger btn-sm" onclick="clearAlertHistory()">
+                            <i class="bi bi-trash3 me-1"></i> Clear History
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0" id="alertsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">Date / Time</th>
+                                        <th>Student</th>
+                                        <th>Course</th>
+                                        <th>Assignment</th>
+                                        <th>Grade</th>
+                                        <th>Type</th>
+                                        <th>Channel</th>
+                                        <th class="pe-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="alertsTableBody">
+                                    <tr><td colspan="8" class="text-center py-4 text-muted">No alerts sent yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="liveToast" class="toast align-items-center text-white bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toastMessage">Action completed.</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let appConfig = {};
+        let dashboardData = {};
+
+        function showToast(message, isError = false) {
+            const toastEl = document.getElementById('liveToast');
+            toastEl.className = `toast align-items-center text-white border-0 ${isError ? 'bg-danger' : 'bg-success'}`;
+            document.getElementById('toastMessage').innerText = message;
+            const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+            toast.show();
+        }
+
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                const status = data.status || {};
+
+                const lastCheck = status.last_check_time?.value || 'Never';
+                const nextCheck = status.next_check_time?.value || 'Scheduled';
+                const isChecking = data.is_checking || status.is_checking?.value === 'true';
+
+                document.getElementById('lastCheckTime').innerText = lastCheck;
+                document.getElementById('nextCheckTime').innerText = nextCheck;
+
+                if (status.last_check_summary?.value) {
+                    document.getElementById('checkSummary').innerText = status.last_check_summary.value;
+                }
+
+                const dot = document.getElementById('statusDot');
+                const txt = document.getElementById('statusText');
+                const btn = document.getElementById('btnCheckNow');
+                const icon = document.getElementById('iconCheckNow');
+                const btnTxt = document.getElementById('textCheckNow');
+
+                if (isChecking) {
+                    dot.className = 'bi bi-arrow-repeat fs-6 me-1 text-primary spinner-border spinner-border-sm';
+                    txt.innerText = 'Checking...';
+                    txt.className = 'text-primary fw-bold';
+                    btn.disabled = true;
+                    icon.classList.add('spinner-border', 'spinner-border-sm');
+                    btnTxt.innerText = 'Checking...';
+                } else {
+                    dot.className = 'bi bi-circle-fill fs-6 me-1 text-success';
+                    txt.innerText = 'Active';
+                    txt.className = 'text-success fw-bold';
+                    btn.disabled = false;
+                    icon.className = 'bi bi-arrow-repeat me-1';
+                    btnTxt.innerText = 'Check Now';
+                }
+            } catch (e) {
+                console.error('Error loading status:', e);
+            }
+        }
+
+        async function loadData() {
+            try {
+                const res = await fetch('/api/data');
+                dashboardData = await res.json();
+                renderDashboard(dashboardData.students || []);
+                renderAlerts(dashboardData.recent_alerts || []);
+                document.getElementById('dashboardLoading').style.display = 'none';
+                document.getElementById('dashboardContent').style.display = 'block';
+            } catch (e) {
+                console.error('Error loading dashboard data:', e);
+            }
+        }
+
+        function renderDashboard(students) {
+            const tabsContainer = document.getElementById('studentTabs');
+            const panesContainer = document.getElementById('studentTabPanes');
+
+            tabsContainer.innerHTML = '';
+            panesContainer.innerHTML = '';
+
+            if (!students || students.length === 0) {
+                panesContainer.innerHTML = `
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-info-circle fs-2"></i>
+                        <p class="mt-2">No student records in database yet. Click <strong>"Check Now"</strong> or configure credentials in Settings.</p>
+                    </div>`;
+                return;
+            }
+
+            students.forEach((s, idx) => {
+                const isActive = idx === 0;
+                const tabId = `student-tab-${s.student_id}`;
+                const paneId = `student-pane-${s.student_id}`;
+
+                // Student Tab Header
+                const tabItem = document.createElement('li');
+                tabItem.className = 'nav-item';
+                tabItem.innerHTML = `
+                    <button class="nav-link ${isActive ? 'active' : ''} fw-bold" id="${tabId}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button">
+                        <i class="bi bi-person-fill me-1"></i> ${s.student_name}
+                        ${s.flagged && s.flagged.length > 0 ? `<span class="badge bg-danger ms-2">${s.flagged.length}</span>` : ''}
+                    </button>`;
+                tabsContainer.appendChild(tabItem);
+
+                // Student Tab Pane
+                const pane = document.createElement('div');
+                pane.className = `tab-pane fade ${isActive ? 'show active' : ''}`;
+                pane.id = paneId;
+
+                // Action items section
+                let flaggedHtml = '';
+                if (s.flagged && s.flagged.length > 0) {
+                    flaggedHtml = `
+                        <div class="card mb-4 border-danger">
+                            <div class="card-header bg-danger text-white d-flex align-items-center">
+                                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                                <span>Action Required: Missing or Low Grade Assignments (${s.flagged.length})</span>
+                            </div>
+                            <div class="card-body p-2 p-md-3">
+                                <div class="row g-2">
+                                    ${s.flagged.map(f => `
+                                        <div class="col-12 col-lg-6">
+                                            <div class="p-3 bg-light rounded flagged-item ${f.is_missing ? '' : 'low-grade'} d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <span class="badge ${f.is_missing ? 'badge-missing' : 'badge-low'} me-2">
+                                                        ${f.is_missing ? 'MISSING' : `${f.grade}%`}
+                                                    </span>
+                                                    <strong class="text-dark">${f.course}</strong>
+                                                    <div class="small text-muted mt-1">${f.assignment}</div>
+                                                    ${f.due_date ? `<div class="small text-secondary"><i class="bi bi-calendar-event me-1"></i>Due: ${f.due_date}</div>` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>`;
+                } else {
+                    flaggedHtml = `
+                        <div class="alert alert-success d-flex align-items-center mb-4" role="alert">
+                            <i class="bi bi-check-circle-fill me-2 fs-4"></i>
+                            <div><strong>All caught up!</strong> No missing assignments or grades below threshold for ${s.student_name}.</div>
+                        </div>`;
+                }
+
+                // Course breakdown
+                let coursesHtml = '';
+                if (s.courses && s.courses.length > 0) {
+                    coursesHtml = `
+                        <div class="accordion" id="accordion-${s.student_id}">
+                            ${s.courses.map((c, cIdx) => {
+                                const accId = `acc-${s.student_id}-${cIdx}`;
+                                const avgBadge = c.average !== null
+                                    ? `<span class="badge ${c.average >= 90 ? 'badge-good' : (c.average >= 70 ? 'badge-low' : 'badge-missing')} ms-auto me-3 fs-6">${c.average}%</span>`
+                                    : '';
+
+                                return `
+                                    <div class="accordion-item card mb-2 overflow-hidden">
+                                        <h2 class="accordion-header" id="heading-${accId}">
+                                            <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${accId}">
+                                                <i class="bi bi-book me-2 text-primary"></i> ${c.name}
+                                                ${avgBadge}
+                                            </button>
+                                        </h2>
+                                        <div id="collapse-${accId}" class="accordion-collapse collapse" data-bs-parent="#accordion-${s.student_id}">
+                                            <div class="accordion-body p-0">
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-hover align-middle mb-0 table-assignment">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th class="ps-3">Assignment</th>
+                                                                <th>Category</th>
+                                                                <th>Due Date</th>
+                                                                <th class="text-end pe-3">Grade</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            ${c.assignments.map(a => {
+                                                                let gradeBadge = '';
+                                                                if (a.is_missing) {
+                                                                    gradeBadge = '<span class="badge badge-missing">Missing</span>';
+                                                                } else if (a.grade.toUpperCase() === 'X') {
+                                                                    gradeBadge = '<span class="badge badge-exempt">Exempt</span>';
+                                                                } else if (a.numeric_grade !== null) {
+                                                                    const bg = a.numeric_grade >= 90 ? 'badge-good' : (a.numeric_grade >= 70 ? 'badge-low' : 'badge-missing');
+                                                                    gradeBadge = `<span class="badge ${bg}">${a.grade}</span>`;
+                                                                } else {
+                                                                    gradeBadge = `<span class="text-muted">${a.grade || '—'}</span>`;
+                                                                }
+
+                                                                return `
+                                                                    <tr>
+                                                                        <td class="ps-3 fw-medium">
+                                                                            ${a.assignment}
+                                                                            ${a.assignment_note ? `<div class="small text-muted fst-italic">${a.assignment_note}</div>` : ''}
+                                                                        </td>
+                                                                        <td class="text-muted small">${a.category || '—'}</td>
+                                                                        <td class="text-muted small">${a.due_date || '—'}</td>
+                                                                        <td class="text-end pe-3">${gradeBadge}</td>
+                                                                    </tr>`;
+                                                            }).join('')}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>`;
+                            }).join('')}
+                        </div>`;
+                }
+
+                pane.innerHTML = flaggedHtml + coursesHtml;
+                panesContainer.appendChild(pane);
+            });
+        }
+
+        function renderAlerts(alerts) {
+            const tbody = document.getElementById('alertsTableBody');
+            if (!alerts || alerts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No alerts sent yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = alerts.map(a => `
+                <tr>
+                    <td class="ps-3 text-muted small">${a.timestamp ? a.timestamp.replace('T', ' ').substring(0, 16) : '—'}</td>
+                    <td><strong>${a.student_name}</strong></td>
+                    <td class="text-muted">${a.course}</td>
+                    <td>${a.assignment}</td>
+                    <td><span class="badge ${a.alert_type === 'MISSING' ? 'badge-missing' : 'badge-low'}">${a.grade || a.alert_type}</span></td>
+                    <td><span class="badge bg-secondary">${a.alert_type}</span></td>
+                    <td class="small text-muted">${a.channels || '—'}</td>
+                    <td class="pe-3"><span class="badge ${a.status === 'SENT' ? 'bg-success' : 'bg-danger'}">${a.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                appConfig = await res.json();
+
+                // Alert Rules
+                document.getElementById('min_grade').value = appConfig.alert_rules?.min_grade ?? 90;
+                document.getElementById('alert_on_missing').checked = appConfig.alert_rules?.alert_on_missing ?? true;
+                document.getElementById('alert_on_grade_drop').checked = appConfig.alert_rules?.alert_on_grade_drop ?? true;
+                document.getElementById('alert_on_new_only').checked = appConfig.alert_rules?.alert_on_new_only ?? true;
+                document.getElementById('dashboard_url').value = appConfig.general?.dashboard_url || '';
+
+                // Pushover
+                document.getElementById('pushover_enabled').checked = appConfig.pushover?.enabled ?? false;
+                document.getElementById('pushover_app_token').value = appConfig.pushover?.app_token || '';
+                const uKeys = appConfig.pushover?.user_keys || [];
+                document.getElementById('pushover_user_1').value = uKeys[0] || '';
+                document.getElementById('pushover_user_2').value = uKeys[1] || '';
+                togglePushoverFields();
+
+                // Email
+                document.getElementById('email_enabled').checked = appConfig.email?.enabled ?? false;
+                document.getElementById('smtp_host').value = appConfig.email?.smtp_host || 'smtp.gmail.com';
+                document.getElementById('smtp_port').value = appConfig.email?.smtp_port || 587;
+                document.getElementById('smtp_user').value = appConfig.email?.smtp_user || '';
+                document.getElementById('smtp_password').value = appConfig.email?.smtp_password || '';
+                document.getElementById('use_tls').checked = appConfig.email?.use_tls ?? true;
+                const recips = appConfig.email?.recipients || [];
+                document.getElementById('email_recipient_1').value = recips[0] || '';
+                document.getElementById('email_recipient_2').value = recips[1] || '';
+                toggleEmailFields();
+
+                // Schedule
+                document.getElementById('interval_minutes').value = appConfig.schedule?.interval_minutes || 30;
+                document.getElementById('school_hours_only').checked = appConfig.schedule?.school_hours_only ?? true;
+                document.getElementById('weekdays_only').checked = appConfig.schedule?.weekdays_only ?? true;
+
+                // Portal
+                document.getElementById('district_id').value = appConfig.ascender?.district_id || '';
+                document.getElementById('username').value = appConfig.ascender?.username || '';
+                document.getElementById('password').value = appConfig.ascender?.password || '';
+
+            } catch (e) {
+                console.error('Error loading config:', e);
+            }
+        }
+
+        function togglePushoverFields() {
+            const enabled = document.getElementById('pushover_enabled').checked;
+            document.getElementById('pushoverFields').style.opacity = enabled ? '1' : '0.5';
+        }
+
+        function toggleEmailFields() {
+            const enabled = document.getElementById('email_enabled').checked;
+            document.getElementById('emailFields').style.opacity = enabled ? '1' : '0.5';
+        }
+
+        async function saveSettings(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSaveSettings');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+            const payload = {
+                min_grade: document.getElementById('min_grade').value,
+                alert_on_missing: document.getElementById('alert_on_missing').checked,
+                alert_on_grade_drop: document.getElementById('alert_on_grade_drop').checked,
+                alert_on_new_only: document.getElementById('alert_on_new_only').checked,
+                dashboard_url: document.getElementById('dashboard_url').value,
+
+                pushover_enabled: document.getElementById('pushover_enabled').checked,
+                pushover_app_token: document.getElementById('pushover_app_token').value,
+                pushover_user_1: document.getElementById('pushover_user_1').value,
+                pushover_user_2: document.getElementById('pushover_user_2').value,
+
+                email_enabled: document.getElementById('email_enabled').checked,
+                smtp_host: document.getElementById('smtp_host').value,
+                smtp_port: document.getElementById('smtp_port').value,
+                smtp_user: document.getElementById('smtp_user').value,
+                smtp_password: document.getElementById('smtp_password').value,
+                use_tls: document.getElementById('use_tls').checked,
+                email_recipient_1: document.getElementById('email_recipient_1').value,
+                email_recipient_2: document.getElementById('email_recipient_2').value,
+
+                interval_minutes: document.getElementById('interval_minutes').value,
+                school_hours_only: document.getElementById('school_hours_only').checked,
+                weekdays_only: document.getElementById('weekdays_only').checked,
+
+                district_id: document.getElementById('district_id').value,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            };
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showToast('Settings saved successfully!');
+                    loadConfig();
+                    loadData();
+                } else {
+                    showToast('Failed to save settings: ' + (result.message || 'Unknown error'), true);
+                }
+            } catch (err) {
+                showToast('Network error while saving settings', true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Save Settings';
+            }
+        }
+
+        async function triggerCheck() {
+            const btn = document.getElementById('btnCheckNow');
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/check-now', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('Grade check started. Updating data in background...');
+                    setTimeout(loadStatus, 1000);
+                    setTimeout(loadData, 5000);
+                } else {
+                    showToast(data.message || 'Check could not be started', true);
+                }
+            } catch (err) {
+                showToast('Failed to trigger check', true);
+            }
+        }
+
+        async function sendTestNotification() {
+            showToast('Sending test notification to configured accounts...');
+            try {
+                const res = await fetch('/api/test-notification', { method: 'POST' });
+                const results = await res.json();
+
+                let msgs = [];
+                if (results.pushover) {
+                    if (results.pushover.success) msgs.push('✅ Pushover delivered');
+                    else msgs.push('❌ Pushover failed: ' + (results.pushover.error || 'Check tokens'));
+                }
+                if (results.email) {
+                    if (results.email.success) msgs.push('✅ Email sent');
+                    else msgs.push('❌ Email failed: ' + (results.email.error || 'Check SMTP'));
+                }
+                if (msgs.length === 0) msgs.push('Neither Pushover nor Email is enabled in settings.');
+
+                showToast(msgs.join(' | '), !msgs.some(m => m.startsWith('✅')));
+                loadData();
+            } catch (err) {
+                showToast('Error sending test notification', true);
+            }
+        }
+
+        async function clearAlertHistory() {
+            if (!confirm('Are you sure you want to clear the alert history?')) return;
+            try {
+                await fetch('/api/clear-alerts', { method: 'POST' });
+                showToast('Alert history cleared');
+                loadData();
+            } catch (e) {
+                showToast('Failed to clear alert history', true);
+            }
+        }
+
+        // Initialize and setup polling
+        window.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+            loadStatus();
+            loadData();
+            setInterval(loadStatus, 15000); // Poll status every 15s
+        });
+    </script>
+</body>
+</html>
