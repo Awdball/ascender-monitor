@@ -6,11 +6,8 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 CONFIG_FILE = DATA_DIR / "config.json"
 
 DEFAULT_CONFIG = {
-    "general": {
-        "dashboard_url": ""
-    },
     "ascender": {
-        "district_id": "",
+        "district_id": "061907",
         "username": "",
         "password": ""
     },
@@ -18,6 +15,7 @@ DEFAULT_CONFIG = {
         "min_grade": 90.0,
         "alert_on_missing": True,
         "alert_on_grade_drop": True,
+        "alert_on_updated": True,
         "alert_on_new_only": True
     },
     "pushover": {
@@ -47,15 +45,12 @@ DEFAULT_CONFIG = {
 def load_seed_env():
     """Try to read .secrets/ascender.env or system env vars to seed initial credentials."""
     env_paths = [
-        Path(os.environ.get("ENV_FILE", "")) if os.environ.get("ENV_FILE") else None,
         Path("/app/.secrets/ascender.env"),
-        Path(".secrets/ascender.env"),
-        Path("/app/.env"),
-        Path(".env")
+        Path("/storage/config/awdball.lan/.secrets/ascender.env")
     ]
     env_data = {}
     for p in env_paths:
-        if p and p.exists():
+        if p.exists():
             with open(p, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
@@ -66,7 +61,7 @@ def load_seed_env():
 
     user = os.environ.get("ASCENDER_USERNAME") or env_data.get("ASCENDER_USERNAME", "")
     pwd = os.environ.get("ASCENDER_PASSWORD") or env_data.get("ASCENDER_PASSWORD", "")
-    dist = os.environ.get("ASCENDER_DISTRICT_ID") or env_data.get("ASCENDER_DISTRICT_ID", "")
+    dist = os.environ.get("ASCENDER_DISTRICT_ID") or env_data.get("ASCENDER_DISTRICT_ID", "061907")
     return user, pwd, dist
 
 def get_config():
@@ -130,11 +125,8 @@ def update_config_from_form(form_data):
     """Update config from web UI form submission, preserving existing passwords if masked."""
     current = get_config()
 
-    # General
-    current.setdefault("general", {})["dashboard_url"] = form_data.get("dashboard_url", "").strip()
-
     # Ascender
-    current["ascender"]["district_id"] = form_data.get("district_id", "").strip()
+    current["ascender"]["district_id"] = form_data.get("district_id", "061907").strip()
     current["ascender"]["username"] = form_data.get("username", "").strip()
     new_pwd = form_data.get("password", "").strip()
     if new_pwd and new_pwd != "••••••••":
@@ -147,6 +139,7 @@ def update_config_from_form(form_data):
         current["alert_rules"]["min_grade"] = 90.0
     current["alert_rules"]["alert_on_missing"] = bool(form_data.get("alert_on_missing"))
     current["alert_rules"]["alert_on_grade_drop"] = bool(form_data.get("alert_on_grade_drop"))
+    current["alert_rules"]["alert_on_updated"] = bool(form_data.get("alert_on_updated"))
     current["alert_rules"]["alert_on_new_only"] = bool(form_data.get("alert_on_new_only", True))
 
     # Pushover

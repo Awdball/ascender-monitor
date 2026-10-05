@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ascender Grade Monitor</title>
+    <title>Ascender Grade Monitor | Aubrey ISD</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -93,6 +93,7 @@
             <a class="navbar-brand d-flex align-items-center" href="#">
                 <i class="bi bi-mortarboard-fill text-warning me-2 fs-4"></i>
                 <span>Ascender Monitor</span>
+                <span class="badge bg-secondary ms-2 fs-6 fw-normal d-none d-sm-inline">Aubrey ISD</span>
             </a>
 
             <div class="d-flex align-items-center ms-auto">
@@ -188,6 +189,11 @@
                                                 <label class="form-check-label fw-semibold" for="alert_on_missing">Alert on Missing Assignments ('M')</label>
                                             </div>
                                             <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" id="alert_on_updated" name="alert_on_updated">
+                                                <label class="form-check-label fw-semibold" for="alert_on_updated">Alert on Grade Updates & Turn-Ins</label>
+                                                <div class="form-text mt-0">Notifies when missing work is turned in or existing grades change/improve.</div>
+                                            </div>
+                                            <div class="form-check form-switch mb-2">
                                                 <input class="form-check-input" type="checkbox" id="alert_on_grade_drop" name="alert_on_grade_drop">
                                                 <label class="form-check-label fw-semibold" for="alert_on_grade_drop">Alert if an existing grade drops lower</label>
                                             </div>
@@ -195,12 +201,6 @@
                                                 <input class="form-check-input" type="checkbox" id="alert_on_new_only" name="alert_on_new_only">
                                                 <label class="form-check-label" for="alert_on_new_only">Only alert on new / updated assignments (prevents repeat spam)</label>
                                             </div>
-                                        </div>
-
-                                        <div class="col-12 pt-2 border-top">
-                                            <label class="form-label fw-semibold">Dashboard Base URL (Optional)</label>
-                                            <input type="url" class="form-control" id="dashboard_url" name="dashboard_url" placeholder="https://grades.example.com">
-                                            <div class="form-text">If provided, Pushover notifications and email alerts will include a direct link back to this web interface.</div>
                                         </div>
                                     </div>
                                 </div>
@@ -261,7 +261,7 @@
                                         </div>
                                         <div class="col-12 col-md-6">
                                             <label class="form-label fw-semibold">SMTP Username</label>
-                                            <input type="text" class="form-control" id="smtp_user" name="smtp_user" placeholder="user@example.com">
+                                            <input type="text" class="form-control" id="smtp_user" name="smtp_user" placeholder="user@gmail.com">
                                         </div>
                                         <div class="col-12 col-md-6">
                                             <label class="form-label fw-semibold">SMTP App Password</label>
@@ -326,7 +326,7 @@
                                     <div class="row g-3">
                                         <div class="col-12 col-md-4">
                                             <label class="form-label fw-semibold">District ID</label>
-                                            <input type="text" class="form-control" id="district_id" name="district_id" placeholder="e.g. 123456" required>
+                                            <input type="text" class="form-control" id="district_id" name="district_id" value="061907" required>
                                         </div>
                                         <div class="col-12 col-md-4">
                                             <label class="form-label fw-semibold">Username</label>
@@ -414,6 +414,31 @@
             document.getElementById('toastMessage').innerText = message;
             const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
             toast.show();
+        }
+
+        function formatShortDate(dtStr) {
+            if (!dtStr) return '';
+            try {
+                const d = new Date(dtStr);
+                if (isNaN(d.getTime())) return dtStr;
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const yy = String(d.getFullYear()).slice(-2);
+                return `${mm}/${dd}/${yy}`;
+            } catch {
+                return dtStr;
+            }
+        }
+
+        function formatGradeBadgeText(g) {
+            if (g === null || g === undefined || g === '') return '—';
+            const s = String(g).trim();
+            if (s.toUpperCase() === 'M') return 'Missing';
+            if (s.toUpperCase() === 'X') return 'Exempt';
+            if (!isNaN(parseFloat(s)) && isFinite(s)) {
+                return `${parseFloat(s)}%`;
+            }
+            return s;
         }
 
         async function loadStatus() {
@@ -544,6 +569,67 @@
                         </div>`;
                 }
 
+                // Recently Updated section
+                let updatedHtml = '';
+                if (s.updated_assignments && s.updated_assignments.length > 0) {
+                    updatedHtml = `
+                        <div class="card mb-4 border-info">
+                            <div class="card-header bg-info-subtle text-info-emphasis fw-bold d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-clock-history text-info me-2 fs-5"></i>
+                                    <span>Recently Updated Grades (${s.updated_assignments.length})</span>
+                                </div>
+                                <span class="badge bg-white text-info-emphasis border border-info-subtle">Grade History</span>
+                            </div>
+                            <div class="card-body p-2 p-md-3">
+                                <div class="row g-2">
+                                    ${s.updated_assignments.map(u => {
+                                        const oldG = formatGradeBadgeText(u.previous_grade);
+                                        const newG = formatGradeBadgeText(u.grade);
+                                        const oldDate = formatShortDate(u.previous_grade_date || u.first_seen);
+                                        const newDate = formatShortDate(u.grade_updated_at || u.last_seen);
+                                        const isTurnedIn = (u.previous_grade || '').toUpperCase() === 'M';
+
+                                        let badgeType = '<span class="badge bg-primary me-2"><i class="bi bi-arrow-repeat me-1"></i>Updated</span>';
+                                        if (isTurnedIn) {
+                                            badgeType = '<span class="badge bg-success me-2"><i class="bi bi-check2-circle me-1"></i>Turned In</span>';
+                                        } else if (u.numeric_grade !== null && u.previous_numeric_grade !== null && u.previous_numeric_grade !== undefined) {
+                                            if (u.numeric_grade > u.previous_numeric_grade) {
+                                                badgeType = '<span class="badge bg-success me-2"><i class="bi bi-graph-up-arrow me-1"></i>Improved</span>';
+                                            } else if (u.numeric_grade < u.previous_numeric_grade) {
+                                                badgeType = '<span class="badge bg-warning text-dark me-2"><i class="bi bi-graph-down-arrow me-1"></i>Drop</span>';
+                                            }
+                                        }
+
+                                        return `
+                                            <div class="col-12 col-lg-6">
+                                                <div class="p-3 bg-light rounded border border-info-subtle d-flex flex-column justify-content-between h-100">
+                                                    <div class="d-flex align-items-start justify-content-between mb-2">
+                                                        <div>
+                                                            ${badgeType}
+                                                            <strong class="text-dark">${u.course}</strong>
+                                                        </div>
+                                                        <span class="badge ${u.numeric_grade >= 90 ? 'badge-good' : (u.numeric_grade >= 70 ? 'badge-low' : 'badge-missing')} fs-6">
+                                                            ${newG}
+                                                        </span>
+                                                    </div>
+                                                    <div class="fw-semibold text-dark mb-2">${u.assignment}</div>
+                                                    <div class="p-2 bg-white rounded border small d-flex align-items-center flex-wrap">
+                                                        <strong class="text-secondary me-1">${u.assignment}:</strong>
+                                                        <span class="${isTurnedIn ? 'text-danger fw-bold' : 'text-muted'}">${oldG} (${oldDate})</span>
+                                                        <i class="bi bi-arrow-right text-primary mx-2 fw-bold"></i>
+                                                        <span class="text-success fw-bold">Updated ${newG} (${newDate})</span>
+                                                    </div>
+                                                    ${u.due_date ? `<div class="small text-muted mt-2"><i class="bi bi-calendar-event me-1"></i>Due: ${u.due_date}</div>` : ''}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        </div>`;
+                }
+
                 // Course breakdown
                 let coursesHtml = '';
                 if (s.courses && s.courses.length > 0) {
@@ -584,20 +670,46 @@
                                                                     gradeBadge = '<span class="badge badge-exempt">Exempt</span>';
                                                                 } else if (a.numeric_grade !== null) {
                                                                     const bg = a.numeric_grade >= 90 ? 'badge-good' : (a.numeric_grade >= 70 ? 'badge-low' : 'badge-missing');
-                                                                    gradeBadge = `<span class="badge ${bg}">${a.grade}</span>`;
+                                                                    gradeBadge = `<span class="badge ${bg}">${a.grade_display || a.grade}</span>`;
                                                                 } else {
                                                                     gradeBadge = `<span class="text-muted">${a.grade || '—'}</span>`;
+                                                                }
+
+                                                                let updateInfo = '';
+                                                                let wasBadge = '';
+                                                                if (a.previous_grade) {
+                                                                    const oldG = formatGradeBadgeText(a.previous_grade);
+                                                                    const newG = formatGradeBadgeText(a.grade);
+                                                                    const oldDate = formatShortDate(a.previous_grade_date || a.first_seen);
+                                                                    const newDate = formatShortDate(a.grade_updated_at || a.last_seen);
+                                                                    const isTurnedIn = (a.previous_grade || '').toUpperCase() === 'M';
+
+                                                                    updateInfo = `
+                                                                        <div class="small mt-1 text-muted d-flex align-items-center flex-wrap gap-1">
+                                                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-1">
+                                                                                <i class="bi bi-clock-history me-1"></i>Updated
+                                                                            </span>
+                                                                            <span class="${isTurnedIn ? 'text-danger' : 'text-muted'}">${oldG} (${oldDate})</span>
+                                                                            <i class="bi bi-arrow-right text-primary mx-1 fw-bold"></i>
+                                                                            <strong class="text-success">Updated ${newG} (${newDate})</strong>
+                                                                        </div>
+                                                                    `;
+                                                                    wasBadge = `<div class="small text-muted fst-italic mt-1" style="font-size: 0.75rem;">was ${oldG}</div>`;
                                                                 }
 
                                                                 return `
                                                                     <tr>
                                                                         <td class="ps-3 fw-medium">
-                                                                            ${a.assignment}
-                                                                            ${a.assignment_note ? `<div class="small text-muted fst-italic">${a.assignment_note}</div>` : ''}
+                                                                            <div>${a.assignment}</div>
+                                                                            ${updateInfo}
+                                                                            ${a.assignment_note ? `<div class="small text-muted fst-italic mt-1">${a.assignment_note}</div>` : ''}
                                                                         </td>
                                                                         <td class="text-muted small">${a.category || '—'}</td>
                                                                         <td class="text-muted small">${a.due_date || '—'}</td>
-                                                                        <td class="text-end pe-3">${gradeBadge}</td>
+                                                                        <td class="text-end pe-3">
+                                                                            ${gradeBadge}
+                                                                            ${wasBadge}
+                                                                        </td>
                                                                     </tr>`;
                                                             }).join('')}
                                                         </tbody>
@@ -610,7 +722,7 @@
                         </div>`;
                 }
 
-                pane.innerHTML = flaggedHtml + coursesHtml;
+                pane.innerHTML = updatedHtml + flaggedHtml + coursesHtml;
                 panesContainer.appendChild(pane);
             });
         }
@@ -622,18 +734,35 @@
                 return;
             }
 
-            tbody.innerHTML = alerts.map(a => `
-                <tr>
-                    <td class="ps-3 text-muted small">${a.timestamp ? a.timestamp.replace('T', ' ').substring(0, 16) : '—'}</td>
-                    <td><strong>${a.student_name}</strong></td>
-                    <td class="text-muted">${a.course}</td>
-                    <td>${a.assignment}</td>
-                    <td><span class="badge ${a.alert_type === 'MISSING' ? 'badge-missing' : 'badge-low'}">${a.grade || a.alert_type}</span></td>
-                    <td><span class="badge bg-secondary">${a.alert_type}</span></td>
-                    <td class="small text-muted">${a.channels || '—'}</td>
-                    <td class="pe-3"><span class="badge ${a.status === 'SENT' ? 'bg-success' : 'bg-danger'}">${a.status}</span></td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = alerts.map(a => {
+                let typeBadge = `<span class="badge bg-secondary">${a.alert_type}</span>`;
+                if (a.alert_type === 'TURNED_IN') {
+                    typeBadge = '<span class="badge bg-info text-dark"><i class="bi bi-check2-circle me-1"></i>Turned In</span>';
+                } else if (a.alert_type === 'GRADE_IMPROVED') {
+                    typeBadge = '<span class="badge bg-success"><i class="bi bi-graph-up-arrow me-1"></i>Improved</span>';
+                } else if (a.alert_type === 'GRADE_DROP') {
+                    typeBadge = '<span class="badge bg-warning text-dark"><i class="bi bi-graph-down-arrow me-1"></i>Grade Drop</span>';
+                } else if (a.alert_type === 'GRADE_UPDATED') {
+                    typeBadge = '<span class="badge bg-primary"><i class="bi bi-arrow-repeat me-1"></i>Updated</span>';
+                } else if (a.alert_type === 'MISSING') {
+                    typeBadge = '<span class="badge bg-danger">Missing</span>';
+                } else if (a.alert_type === 'LOW_GRADE') {
+                    typeBadge = '<span class="badge bg-warning text-dark">Low Grade</span>';
+                }
+
+                return `
+                    <tr>
+                        <td class="ps-3 text-muted small">${a.timestamp ? a.timestamp.replace('T', ' ').substring(0, 16) : '—'}</td>
+                        <td><strong>${a.student_name}</strong></td>
+                        <td class="text-muted">${a.course}</td>
+                        <td>${a.assignment}</td>
+                        <td><span class="badge ${a.alert_type === 'MISSING' ? 'badge-missing' : (a.alert_type.includes('UPDATE') || a.alert_type === 'TURNED_IN' || a.alert_type === 'GRADE_IMPROVED' ? 'bg-light text-dark border' : 'badge-low')}">${a.grade || a.alert_type}</span></td>
+                        <td>${typeBadge}</td>
+                        <td class="small text-muted">${a.channels || '—'}</td>
+                        <td class="pe-3"><span class="badge ${a.status === 'SENT' ? 'bg-success' : 'bg-danger'}">${a.status}</span></td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         async function loadConfig() {
@@ -644,9 +773,9 @@
                 // Alert Rules
                 document.getElementById('min_grade').value = appConfig.alert_rules?.min_grade ?? 90;
                 document.getElementById('alert_on_missing').checked = appConfig.alert_rules?.alert_on_missing ?? true;
+                document.getElementById('alert_on_updated').checked = appConfig.alert_rules?.alert_on_updated ?? true;
                 document.getElementById('alert_on_grade_drop').checked = appConfig.alert_rules?.alert_on_grade_drop ?? true;
                 document.getElementById('alert_on_new_only').checked = appConfig.alert_rules?.alert_on_new_only ?? true;
-                document.getElementById('dashboard_url').value = appConfig.general?.dashboard_url || '';
 
                 // Pushover
                 document.getElementById('pushover_enabled').checked = appConfig.pushover?.enabled ?? false;
@@ -674,7 +803,7 @@
                 document.getElementById('weekdays_only').checked = appConfig.schedule?.weekdays_only ?? true;
 
                 // Portal
-                document.getElementById('district_id').value = appConfig.ascender?.district_id || '';
+                document.getElementById('district_id').value = appConfig.ascender?.district_id || '061907';
                 document.getElementById('username').value = appConfig.ascender?.username || '';
                 document.getElementById('password').value = appConfig.ascender?.password || '';
 
@@ -702,9 +831,9 @@
             const payload = {
                 min_grade: document.getElementById('min_grade').value,
                 alert_on_missing: document.getElementById('alert_on_missing').checked,
+                alert_on_updated: document.getElementById('alert_on_updated').checked,
                 alert_on_grade_drop: document.getElementById('alert_on_grade_drop').checked,
                 alert_on_new_only: document.getElementById('alert_on_new_only').checked,
-                dashboard_url: document.getElementById('dashboard_url').value,
 
                 pushover_enabled: document.getElementById('pushover_enabled').checked,
                 pushover_app_token: document.getElementById('pushover_app_token').value,

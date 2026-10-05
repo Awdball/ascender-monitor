@@ -32,10 +32,10 @@ def run_grade_check():
         asc_cfg = config.get("ascender", {})
         username = asc_cfg.get("username")
         password = asc_cfg.get("password")
-        dist_id = asc_cfg.get("district_id", "")
+        dist_id = asc_cfg.get("district_id", "061907")
 
-        if not username or not password or not dist_id:
-            err = "Ascender username, password, or district ID not configured."
+        if not username or not password:
+            err = "Ascender username or password not configured."
             db.set_status("last_check_status", f"ERROR: {err}")
             return False, err
 
@@ -54,6 +54,7 @@ def run_grade_check():
         min_grade = float(rules.get("min_grade", 90.0))
         alert_on_missing = bool(rules.get("alert_on_missing", True))
         alert_on_grade_drop = bool(rules.get("alert_on_grade_drop", True))
+        alert_on_updated = bool(rules.get("alert_on_updated", True))
         alert_on_new_only = bool(rules.get("alert_on_new_only", True))
 
         total_assignments = 0
@@ -68,7 +69,7 @@ def run_grade_check():
             total_assignments += len(assignments)
 
             for a in assignments:
-                is_new, prev_grade, should_alert, alert_type = db.process_assignment(
+                is_new, is_update, prev_grade, prev_grade_date, should_alert, alert_type = db.process_assignment(
                     student_id=s_id,
                     student_name=s_name,
                     course=a["course"],
@@ -80,13 +81,13 @@ def run_grade_check():
                     assignment_note=a["assignment_note"],
                     min_grade_threshold=min_grade,
                     alert_on_missing=alert_on_missing,
-                    alert_on_grade_drop=alert_on_grade_drop
+                    alert_on_grade_drop=alert_on_grade_drop,
+                    alert_on_updated=alert_on_updated
                 )
 
                 if should_alert:
-                    # Suppress alert if alert_on_new_only is active and item was from past history (>14 days ago)
-                    # but ALWAYS alert on active missing assignments ('M')!
-                    if alert_type == "MISSING" or not alert_on_new_only or is_new:
+                    # Alert if new, updated, or if repeat alerts are enabled
+                    if is_new or is_update or (not alert_on_new_only) or alert_type == "MISSING":
                         notifier.dispatch_grade_alert(
                             config=config,
                             student_name=s_name,
@@ -95,7 +96,10 @@ def run_grade_check():
                             grade=a["grade"],
                             alert_type=alert_type,
                             due_date=a["due_date"],
-                            note=a["assignment_note"]
+                            note=a["assignment_note"],
+                            is_update=is_update,
+                            prev_grade=prev_grade,
+                            prev_grade_date=prev_grade_date
                         )
                         new_alerts += 1
 

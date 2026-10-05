@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 
 class AscenderPortalClient:
-    def __init__(self, district_id="", username="", password=""):
+    def __init__(self, district_id="061907", username="", password=""):
         self.district_id = district_id
         self.username = username
         self.password = password
