@@ -9,6 +9,7 @@ import config_store
 import db
 import notifier
 from portal import AscenderPortalClient
+from __version__ import __version__
 
 app = Flask(__name__)
 check_trigger = threading.Event()
@@ -161,7 +162,7 @@ def background_monitor():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", version=__version__)
 
 @app.route("/api/status")
 def api_status():
@@ -169,6 +170,7 @@ def api_status():
     cfg = config_store.get_config()
     return jsonify({
         "status": status,
+        "version": __version__,
         "is_checking": is_checking,
         "interval_minutes": cfg.get("schedule", {}).get("interval_minutes", 30),
         "alert_threshold": cfg.get("alert_rules", {}).get("min_grade", 90.0)
