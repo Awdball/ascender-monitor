@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -9,6 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY app/requirements.txt /app/requirements.txt
