@@ -8,7 +8,7 @@ ascender-monitor sits on top of the [Ascender](https://texas.ascender.com) Stude
 # Runs as a single, stateless container — all state lives in /data
 docker run -d --name ascender-monitor \
   -p 8080:8080 -v ascender-data:/data \
-  ghcr.io/awdball/ascender-monitor:1.1.0
+  ghcr.io/awdball/ascender-monitor:1.2.0
 ```
 
 ---
@@ -212,7 +212,7 @@ Local time is the container's `TZ` (the default image ships `TZ=America/Chicago`
 docker run -d --name ascender-monitor \
   -p 8080:8080 \
   -v ascender-data:/data \
-  ghcr.io/awdball/ascender-monitor:1.1.0
+  ghcr.io/awdball/ascender-monitor:1.2.0
 
 # then open http://localhost:8080, fill in the settings panel
 # (district id + credentials + Pushover tokens) and hit "Save Settings"
@@ -239,7 +239,7 @@ spec:
     spec:
       containers:
         - name: ascender-monitor
-          image: ghcr.io/awdball/ascender-monitor:1.1.0   # digest-pinned in production
+          image: ghcr.io/awdball/ascender-monitor:1.2.0   # digest-pinned in production
           ports: [{ containerPort: 8080, name: http }]
           env: [{ name: TZ, value: America/Chicago }]
           volumeMounts:
@@ -420,7 +420,7 @@ ascender-monitor/
 ./scripts/release.sh 1.2.0
 ```
 
-Bumps `app/__version__.py`, commits `chore: release v1.2.0`, tags `v1.2.0`, builds and pushes `ghcr.io/awdball/ascender-monitor:v1.2.0`, then updates the `:latest` tag. Bump the digest in your Flux manifest to roll it out.
+Bumps `app/__version__.py`, commits `chore: release v1.2.0`, tags `v1.2.0` — CI then builds and pushes `ghcr.io/awdball/ascender-monitor:1.2.0`, also tagged `1.2` and `latest` (multi-arch amd64/arm64, real semver OCI version label). Bump the tag/digest in your Flux manifest to roll it out. Pushes to `main` only publish a `sha-<commit>` dev tag and never touch `latest`.
 
 ---
 

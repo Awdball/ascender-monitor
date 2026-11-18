@@ -21,6 +21,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -36,19 +39,41 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Publishing policy: semver releases carry 1.2.0 / 1.2 / latest.
+          # Main-branch builds only ever mint a dev sha-<commit> tag —
+          # never a branch-name tag, and never `latest`.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern=latest
             type=sha
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          attestations: false
+          provenance: false
+          sbom: false
+
+      - name: Remove legacy orphan tags (one-time registry cleanup)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Orphans left behind by the pre-1.1 publishing setup: the
+          # branch-name 'main' tag and old dev 'sha-*' tags. Deletion is
+          # idempotent — an already-deleted tag returns 404 and the loop
+          # carries on. Remove this step after the first v1.2.0 release.
+          for tag in main sha-2cbd5a4 sha-41d190b sha-f3d1b9f sha-217d3e8; do
+            curl -fsS -X DELETE \
+              -H "Authorization: Bearer $GHCR_TOKEN" \
+              "https://ghcr.io/v2/awdball/ascender-monitor/manifests/${tag}" \
+              >/dev/null && echo "  deleted: ${tag}" || echo "  skipped (absent?): ${tag}"
+          done
